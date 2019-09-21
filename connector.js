@@ -11,7 +11,7 @@
             {
                 id: "financial_year",
                 alias: "Financial Year",
-                dataType: tableau.dataTypeEnum.integer
+                dataType: tableau.dataTypeEnum.int
             },
             {
                 id: "programme",
