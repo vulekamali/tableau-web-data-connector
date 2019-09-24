@@ -50,21 +50,32 @@
     };
 
     myConnector.getData = function (table, doneCallback) {
-        var facts_url = dataset_url + "/facts/";
-        $.getJSON(facts_url, function(resp) {
-            var persistentData = JSON.parse(tableau.connectionData);
-            var refToCol = persistentData.refToCol;
-            var tableData = resp.data.map(function(openspendingRow) {
-                tableauRow = {};
-                for (var ref in refToCol) {
-                    tableauRow[refToCol[ref]] = openspendingRow[ref];
-                }
-                return tableauRow;
-            });
+        var persistentData = JSON.parse(tableau.connectionData);
+        var refToCol = persistentData.refToCol;
+        var page = 1;
+        var responseLength;
+        do {
+            var factsUrl = dataset_url + "/facts/?pagesize=10000&page=" + page;
+            $.ajax({
+                dataType: "json",
+                url: factsUrl,
+                async: false,
+                success: function(resp) {
+                    responseLength = resp.data.length;
+                    var tableData = resp.data.map(function(openspendingRow) {
+                        tableauRow = {};
+                        for (var ref in refToCol) {
+                            tableauRow[refToCol[ref]] = openspendingRow[ref];
+                        }
+                        return tableauRow;
+                    });
 
-            table.appendRows(tableData);
-            doneCallback();
-        });
+                    table.appendRows(tableData);
+                }
+            });
+            page++;
+        } while (responseLength > 0);
+        doneCallback();
     };
 
     tableau.registerConnector(myConnector);
