@@ -1,22 +1,20 @@
 (function () {
     var dataset_url = "https://openspending.org/api/3/cubes/b9d2af843f3a7ca223eea07fb608e62a:budgeted-and-actual-national-expenditure-uploaded-2019-04-16t1104";
-    var myConnector = tableau.makeConnector();
-    var get_ref = function(model, dimension_name, ref_type) {
-        return model.dimensions[dimension_name][ref_type + "_ref"];
-    };
-    var get_dimension = function(model, hierarchy_name, level) {
-        level = typeof level !== 'undefined' ? level : 0;
-        return model.hierarchies["hierarchy_name"].levels["level"];
-    };
+
     var openspendingToTableauType = {
         string: tableau.dataTypeEnum.string,
         integer: tableau.dataTypeEnum.int,
     };
+
+
+    var myConnector = tableau.makeConnector();
     myConnector.getSchema = function (schemaCallback) {
-        var model_url = dataset_url + "/model/";
-        $.getJSON(model_url, function(response) {
+        var modelUrl = dataset_url + "/model/";
+        $.getJSON(modelUrl, function(response) {
             var model = response.model;
             var cols = [];
+            var refToCol = {};
+
             for (var hierarchyId in model.hierarchies) {
                 var hierarchy = model.hierarchies[hierarchyId];
                 for (var index = 0; index < hierarchy.levels.length; index++) {
@@ -27,10 +25,12 @@
                         columnId = hierarchyId + "_" + (index + 1);
                     var dimensionId = hierarchy.levels[index];
                     var dimension = model.dimensions[dimensionId];
+                    var attribute = dimension.attributes[dimension.label_attribute];
                     cols.push({
                         id: columnId,
-                        dataType: openspendingToTableauType[dimension.attributes[dimensionId].type]
+                        dataType: openspendingToTableauType[attribute.type]
                     });
+                    refToCol[dimension.label_ref] = columnId;
                 }
             };
 
@@ -40,6 +40,11 @@
                 columns: cols
             };
 
+            var persistentData = {
+                refToCol: refToCol,
+            };
+            tableau.connectionData = JSON.stringify(persistentData);
+
             schemaCallback([tableSchema]);
         });
     };
@@ -47,14 +52,14 @@
     myConnector.getData = function (table, doneCallback) {
         var facts_url = dataset_url + "/facts/";
         $.getJSON(facts_url, function(resp) {
-            var tableData = resp.data.map(function(row) {
-                return {
-                    "phase": row["budget_phase.budget_phase"],
-                    "financial_year": row["financial_year.financial_year"],
-                    "programme": row["programme_number.programme"],
-                    "economic_classification": row["econ1.econ1"],
-                    "amount": row["value"]
-                };
+            var persistentData = JSON.parse(tableau.connectionData);
+            var refToCol = persistentData.refToCol;
+            var tableData = resp.data.map(function(openspendingRow) {
+                tableauRow = {};
+                for (var ref in refToCol) {
+                    tableauRow[refToCol[ref]] = openspendingRow[ref];
+                }
+                return tableauRow;
             });
 
             table.appendRows(tableData);
